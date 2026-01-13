@@ -1,0 +1,14 @@
+# Data Manipulation
+pandas
+numpy
+
+# Machine Learning & Serialization
+scikit-learn
+joblib
+
+# Data Visualization (for EDA and reporting)
+matplotlib
+seaborn
+
+# Interactive Interface
+gradio

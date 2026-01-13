@@ -1,0 +1,49 @@
+version: "3.9"
+
+volumes:
+  hf_cache:
+  certbot_conf:
+  certbot_www:
+
+networks:
+  app_net:
+    driver: bridge
+
+services:
+  depression_predictor_app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: depression_predictor_app
+    expose:
+      - "7860"
+    volumes:
+      - ./company_docs:/app/company_docs
+      - ./data:/app/data
+    networks:
+      - app_net
+
+  nginx:
+    image: nginx:alpine
+    container_name: nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - certbot_conf:/etc/letsencrypt:ro
+      - certbot_www:/var/www/certbot:ro
+    networks:
+      - app_net
+    # Ensures Nginx reloads to pick up renewed certs
+    command: '/bin/sh -c ''while :; do sleep 24h & wait $${!}; nginx -s reload; done & nginx -g "daemon off;"'''
+
+  certbot:
+    image: certbot/certbot
+    container_name: certbot
+    volumes:
+      - certbot_conf:/etc/letsencrypt
+      - certbot_www:/var/www/certbot
+    # Automatic renewal loop every 12 hours
+    entrypoint: "/bin/sh -c 'trap exit TERM; while :; do certbot renew; sleep 12h & wait $${!}; done;'"
