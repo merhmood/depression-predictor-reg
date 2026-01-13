@@ -96,4 +96,4 @@ interface = gr.Interface(
     description="This tool uses a Logistic Regression model to predict depression risk based on lifestyle and stress factors."
 )
 
-interface.launch()
+interface.launch(server_name="0.0.0.0", server_port=7860)
