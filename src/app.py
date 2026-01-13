@@ -16,6 +16,19 @@ def predict_depression(
     cgpa, study_sat, job_sat, sleep, diet, suicide, 
     hours, finance_stress, family_hist
 ):
+    # --- FORM VALIDATION SECTION ---
+    # Check if required dropdowns/radios are empty
+    if not gender or not status or not sleep or not diet or not suicide or not family_hist:
+        raise gr.Error("Please fill in all required fields (Gender, Status, Sleep, Diet, etc.) before submitting.")
+
+    # Logical Validation: Student check
+    if status == "Student" and (cgpa is None or cgpa < 0):
+        raise gr.Error("Please provide a valid CGPA for Student status.")
+    
+    # Logical Validation: Profession check
+    if status == "Working Professional" and (not profession or len(profession.strip()) < 2):
+        raise gr.Error("Please specify your Profession.")
+
     # 2. Create a dictionary from inputs
     input_data = {
         'Gender': gender,
@@ -35,39 +48,41 @@ def predict_depression(
         'Family History of Mental Illness': family_hist
     }
 
-    # 3. Preprocess and Align
-    df_input = pd.DataFrame([input_data])
-    
-    # Apply Label Encoding for binary columns
-    for col in ['Gender', 'Have you ever had suicidal thoughts ?', 'Family History of Mental Illness']:
-        df_input[col] = encoders[col].transform(df_input[col].astype(str))
-    
-    # One-Hot Encoding
-    df_encoded = pd.get_dummies(df_input)
-    
-    # Align with training features
-    for col in feature_names:
-        if col not in df_encoded.columns:
-            df_encoded[col] = 0
-    df_final = df_encoded[feature_names]
+    try:
+        # 3. Preprocess and Align
+        df_input = pd.DataFrame([input_data])
+        
+        for col in ['Gender', 'Have you ever had suicidal thoughts ?', 'Family History of Mental Illness']:
+            df_input[col] = encoders[col].transform(df_input[col].astype(str))
+        
+        df_encoded = pd.get_dummies(df_input)
+        
+        for col in feature_names:
+            if col not in df_encoded.columns:
+                df_encoded[col] = 0
+        df_final = df_encoded[feature_names]
 
-    # 4. Predict Probability
-    prob = model_pipeline.predict_proba(df_final)[0][1]
-    
-    # 5. Intervention Logic
-    if prob < 0.3:
-        level, color = "LOW RISK", "🟢"
-        advice = "Continue your healthy habits! Regular exercise and mindfulness can maintain this state."
-    elif prob < 0.7:
-        level, color = "MODERATE RISK", "🟡"
-        advice = "You are showing some signs of stress. Consider a wellness check-in or guided meditation."
-    else:
-        level, color = "HIGH RISK", "🔴"
-        advice = "Risk detected. We recommend speaking with a mental health professional or using a support hotline."
+        # 4. Predict Probability
+        prob = model_pipeline.predict_proba(df_final)[0][1]
+        
+        # 5. Intervention Logic
+        if prob < 0.3:
+            level, color = "LOW RISK", "🟢"
+            advice = "Continue your healthy habits! Regular exercise and mindfulness can maintain this state."
+        elif prob < 0.7:
+            level, color = "MODERATE RISK", "🟡"
+            advice = "You are showing some signs of stress. Consider a wellness check-in or guided meditation."
+        else:
+            level, color = "HIGH RISK", "🔴"
+            advice = "Risk detected. We recommend speaking with a mental health professional or using a support hotline."
 
-    return f"{color} {level}", f"{prob:.2%}", advice
+        return f"{color} {level}", f"{prob:.2%}", advice
 
-# 6. Define Gradio Interface
+    except Exception as e:
+        # Catch-all for data processing errors
+        raise gr.Error(f"An error occurred during prediction: {str(e)}")
+
+# 6. Define Gradio Interface (Interface code remains the same as your snippet)
 interface = gr.Interface(
     fn=predict_depression,
     inputs=[
@@ -92,8 +107,9 @@ interface = gr.Interface(
         gr.Textbox(label="Risk Probability"),
         gr.Textbox(label="Recommendation")
     ],
-    title="AI Depression Risk Screener (mHealth Prototype)",
-    description="This tool uses a Logistic Regression model to predict depression risk based on lifestyle and stress factors."
+    title="AI Depression Risk Screener",
+    description="This tool predicts depression risk based on lifestyle factors."
 )
 
-interface.launch(server_name="0.0.0.0", server_port=7860)
+if __name__ == "__main__":
+    interface.launch(server_name="0.0.0.0", server_port=7860)
