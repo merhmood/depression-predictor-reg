@@ -11,15 +11,37 @@ with open('feature_metadata.json', 'r') as f:
 
 feature_names = metadata['feature_names']
 
+# --- MAPPING DICTIONARIES ---
+# Maps descriptive text from dropdowns to numerical values (0-5) for the ML model
+pressure_map = {
+    "0 = No pressure": 0, "1 = Little": 1, "2 = Average": 2, 
+    "3 = High": 3, "4 = Very high": 4, "5 = Very very high": 5
+}
+
+satisfaction_map = {
+    "0 = Very Dissatisfied": 0, "1 = Dissatisfied": 1, "2 = Neutral": 2, 
+    "3 = Satisfied": 3, "4 = Very Satisfied": 4, "5 = Extremely Satisfied": 5
+}
+
+financial_stress_map = {
+    "1 = No Stress": 1, "2 = Low": 2, "3 = Moderate": 3, "4 = High": 4, "5 = Extreme": 5
+}
+
 def predict_depression(
-    gender, age, status, profession, acad_press, work_press, 
-    cgpa, study_sat, job_sat, sleep, diet, suicide, 
-    hours, finance_stress, family_hist
+    name, phone, gender, age, status, profession, acad_press_label, work_press_label, 
+    cgpa, study_sat_label, job_sat_label, sleep, diet, suicide, 
+    hours, finance_stress_label, family_hist
 ):
     # --- FORM VALIDATION SECTION ---
-    # Check if required dropdowns/radios are empty
     if not gender or not status or not sleep or not diet or not suicide or not family_hist:
-        raise gr.Error("Please fill in all required fields (Gender, Status, Sleep, Diet, etc.) before submitting.")
+        raise gr.Error("Please fill in all required fields before submitting.")
+
+    # Convert descriptive labels back to numerical integers for the model
+    acad_press = pressure_map.get(acad_press_label, 0)
+    work_press = pressure_map.get(work_press_label, 0)
+    study_sat = satisfaction_map.get(study_sat_label, 0)
+    job_sat = satisfaction_map.get(job_sat_label, 0)
+    finance_stress = financial_stress_map.get(finance_stress_label, 1)
 
     # Logical Validation: Student check
     if status == "Student" and (cgpa is None or cgpa < 0):
@@ -79,27 +101,33 @@ def predict_depression(
         return f"{color} {level}", f"{prob:.2%}", advice
 
     except Exception as e:
-        # Catch-all for data processing errors
         raise gr.Error(f"An error occurred during prediction: {str(e)}")
 
-# 6. Define Gradio Interface (Interface code remains the same as your snippet)
+# UI Component Options
+pressure_options = list(pressure_map.keys())
+sat_options = list(satisfaction_map.keys())
+finance_options = list(financial_stress_map.keys())
+
+# 6. Define Gradio Interface
 interface = gr.Interface(
     fn=predict_depression,
     inputs=[
+        gr.Textbox(label="Name"),
+        gr.Textbox(label="Phone Number"),
         gr.Dropdown(["Male", "Female"], label="Gender"),
         gr.Slider(18, 65, step=1, label="Age"),
         gr.Radio(["Student", "Working Professional"], label="Status"),
         gr.Textbox(label="Profession (if applicable)"),
-        gr.Slider(0, 5, step=1, label="Academic Pressure (0-5)"),
-        gr.Slider(0, 5, step=1, label="Work Pressure (0-5)"),
+        gr.Dropdown(pressure_options, label="Academic Pressure Level"), # Changed to Dropdown
+        gr.Dropdown(pressure_options, label="Work Pressure Level"),     # Changed to Dropdown
         gr.Number(label="CGPA (Students only)"),
-        gr.Slider(0, 5, step=1, label="Study Satisfaction (0-5)"),
-        gr.Slider(0, 5, step=1, label="Job Satisfaction (0-5)"),
+        gr.Dropdown(sat_options, label="Study Satisfaction Level"),      # Changed to Dropdown
+        gr.Dropdown(sat_options, label="Job Satisfaction Level"),        # Changed to Dropdown
         gr.Dropdown(["Less than 5 hours", "5-6 hours", "7-8 hours", "More than 8 hours"], label="Sleep Duration"),
         gr.Dropdown(["Healthy", "Moderate", "Unhealthy"], label="Dietary Habits"),
         gr.Radio(["No", "Yes"], label="Have you ever had suicidal thoughts?"),
         gr.Slider(0, 15, step=1, label="Daily Work/Study Hours"),
-        gr.Slider(1, 5, step=1, label="Financial Stress (1-5)"),
+        gr.Dropdown(finance_options, label="Financial Stress Level"),   # Changed to Dropdown
         gr.Radio(["No", "Yes"], label="Family History of Mental Illness")
     ],
     outputs=[
@@ -108,7 +136,7 @@ interface = gr.Interface(
         gr.Textbox(label="Recommendation")
     ],
     title="AI Depression Risk Screener",
-    description="This tool predicts depression risk based on lifestyle factors."
+    description="Welcome to a secure, AI-powered platform designed to assess depression risk using validated lifestyle and behavioral indicators. \n\n Your privacy is our priority. All information provided is handled securely, anonymized, and never shared with third parties. \n\n By using this platform, you provide informed consent for your data to be processed solely for depression risk prediction and research-driven improvement of the system."
 )
 
 if __name__ == "__main__":
