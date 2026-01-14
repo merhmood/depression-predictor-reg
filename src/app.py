@@ -32,24 +32,16 @@ def predict_depression(
     cgpa, study_sat_label, job_sat_label, sleep, diet, suicide, 
     hours, finance_stress_label, family_hist
 ):
-    # --- FORM VALIDATION SECTION ---
+    # --- FORM VALIDATION ---
     if not gender or not status or not sleep or not diet or not suicide or not family_hist:
         raise gr.Error("Please fill in all required fields before submitting.")
 
-    # Convert descriptive labels back to numerical integers for the model
+    # Convert descriptive labels to numerical integers for the model
     acad_press = pressure_map.get(acad_press_label, 0)
     work_press = pressure_map.get(work_press_label, 0)
     study_sat = satisfaction_map.get(study_sat_label, 0)
     job_sat = satisfaction_map.get(job_sat_label, 0)
     finance_stress = financial_stress_map.get(finance_stress_label, 1)
-
-    # Logical Validation: Student check
-    if status == "Student" and (cgpa is None or cgpa < 0):
-        raise gr.Error("Please provide a valid CGPA for Student status.")
-    
-    # Logical Validation: Profession check
-    if status == "Working Professional" and (not profession or len(profession.strip()) < 2):
-        raise gr.Error("Please specify your Profession.")
 
     # 2. Create a dictionary from inputs
     input_data = {
@@ -84,8 +76,12 @@ def predict_depression(
                 df_encoded[col] = 0
         df_final = df_encoded[feature_names]
 
-        # 4. Predict Probability
+        # 4. Predict Probability and Binary Class
         prob = model_pipeline.predict_proba(df_final)[0][1]
+        prediction = model_pipeline.predict(df_final)[0] # 0 or 1
+        
+        # Determine Status string
+        status_text = "Positive" if prediction == 1 else "Negative"
         
         # 5. Intervention Logic
         if prob < 0.3:
@@ -98,7 +94,7 @@ def predict_depression(
             level, color = "HIGH RISK", "🔴"
             advice = "Risk detected. We recommend speaking with a mental health professional or using a support hotline."
 
-        return f"{color} {level}", f"{prob:.2%}", advice
+        return status_text, f"{color} {level}", f"{prob:.2%}", advice
 
     except Exception as e:
         raise gr.Error(f"An error occurred during prediction: {str(e)}")
@@ -118,19 +114,20 @@ interface = gr.Interface(
         gr.Slider(18, 65, step=1, label="Age"),
         gr.Radio(["Student", "Working Professional"], label="Status"),
         gr.Textbox(label="Profession (if applicable)"),
-        gr.Dropdown(pressure_options, label="Academic Pressure Level"), # Changed to Dropdown
-        gr.Dropdown(pressure_options, label="Work Pressure Level"),     # Changed to Dropdown
+        gr.Dropdown(pressure_options, label="Academic Pressure Level"), 
+        gr.Dropdown(pressure_options, label="Work Pressure Level"),     
         gr.Number(label="CGPA (Students only)"),
-        gr.Dropdown(sat_options, label="Study Satisfaction Level"),      # Changed to Dropdown
-        gr.Dropdown(sat_options, label="Job Satisfaction Level"),        # Changed to Dropdown
+        gr.Dropdown(sat_options, label="Study Satisfaction Level"),      
+        gr.Dropdown(sat_options, label="Job Satisfaction Level"),        
         gr.Dropdown(["Less than 5 hours", "5-6 hours", "7-8 hours", "More than 8 hours"], label="Sleep Duration"),
         gr.Dropdown(["Healthy", "Moderate", "Unhealthy"], label="Dietary Habits"),
         gr.Radio(["No", "Yes"], label="Have you ever had suicidal thoughts?"),
         gr.Slider(0, 15, step=1, label="Daily Work/Study Hours"),
-        gr.Dropdown(finance_options, label="Financial Stress Level"),   # Changed to Dropdown
+        gr.Dropdown(finance_options, label="Financial Stress Level"),   
         gr.Radio(["No", "Yes"], label="Family History of Mental Illness")
     ],
     outputs=[
+        gr.Textbox(label="Depression Status"), # NEW OUTPUT FIELD
         gr.Textbox(label="Assessment"),
         gr.Textbox(label="Risk Probability"),
         gr.Textbox(label="Recommendation")
