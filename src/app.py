@@ -12,7 +12,6 @@ with open('feature_metadata.json', 'r') as f:
 feature_names = metadata['feature_names']
 
 # --- MAPPING DICTIONARIES ---
-# Maps descriptive text from dropdowns to numerical values (0-5) for the ML model
 pressure_map = {
     "0 = No pressure": 0, "1 = Little": 1, "2 = Average": 2, 
     "3 = High": 3, "4 = Very high": 4, "5 = Very very high": 5
@@ -36,14 +35,14 @@ def predict_depression(
     if not gender or not status or not sleep or not diet or not suicide or not family_hist:
         raise gr.Error("Please fill in all required fields before submitting.")
 
-    # Convert descriptive labels to numerical integers for the model
+    # Convert descriptive labels to numerical integers
     acad_press = pressure_map.get(acad_press_label, 0)
     work_press = pressure_map.get(work_press_label, 0)
     study_sat = satisfaction_map.get(study_sat_label, 0)
     job_sat = satisfaction_map.get(job_sat_label, 0)
     finance_stress = financial_stress_map.get(finance_stress_label, 1)
 
-    # 2. Create a dictionary from inputs
+    # 2. Create input dictionary
     input_data = {
         'Gender': gender,
         'Age': age,
@@ -76,25 +75,35 @@ def predict_depression(
                 df_encoded[col] = 0
         df_final = df_encoded[feature_names]
 
-        # 4. Predict Probability and Binary Class
+        # 4. Predict Probability
         prob = model_pipeline.predict_proba(df_final)[0][1]
-        prediction = model_pipeline.predict(df_final)[0] # 0 or 1
         
-        # Determine Status string
-        status_text = "Positive" if prediction == 1 else "Negative"
-        
-        # 5. Intervention Logic
-        if prob < 0.3:
-            level, color = "LOW RISK", "🟢"
-            advice = "Continue your healthy habits! Regular exercise and mindfulness can maintain this state."
-        elif prob < 0.7:
-            level, color = "MODERATE RISK", "🟡"
-            advice = "You are showing some signs of stress. Consider a wellness check-in or guided meditation."
-        else:
-            level, color = "HIGH RISK", "🔴"
-            advice = "Risk detected. We recommend speaking with a mental health professional or using a support hotline."
+        # --- PHQ-9 INTERPRETATION LOGIC ---
+        # Map probability (0.0 - 1.0) to PHQ-9 Score (0 - 27)
+        phq9_equivalent_score = round(prob * 27)
+        percentage = prob * 100
 
-        return status_text, f"{color} {level}", f"{prob:.2%}", advice
+        if percentage <= 15:
+            level, color = "MINIMAL DEPRESSION", "🟢"
+            advice = "Your results suggest minimal symptoms. Continue maintaining a healthy lifestyle and work-life balance."
+        elif percentage <= 33:
+            level, color = "MILD DEPRESSION", "🟡"
+            advice = "You are experiencing mild symptoms. 'Watchful waiting' is recommended. Monitor your mood and practice self-care."
+        elif percentage <= 52:
+            level, color = "MODERATE DEPRESSION", "🟠"
+            advice = "Moderate symptoms detected. It is advisable to consult a counselor or health professional to discuss these findings."
+        elif percentage <= 70:
+            level, color = "MODERATELY SEVERE DEPRESSION", "🔴"
+            advice = "Significant symptoms detected. We strongly recommend seeking clinical evaluation and professional support."
+        else:
+            level, color = "SEVERE DEPRESSION", "🛑"
+            advice = "Severe symptoms detected. Please reach out to a mental health professional or a crisis hotline immediately."
+
+        status_text = "Clinically Significant" if phq9_equivalent_score >= 10 else "Not Clinically Significant"
+        
+        assessment_output = f"{color} {level} (PHQ-9 Equiv: {phq9_equivalent_score}/27)"
+        
+        return status_text, assessment_output, f"{percentage:.1f}%", advice
 
     except Exception as e:
         raise gr.Error(f"An error occurred during prediction: {str(e)}")
@@ -127,13 +136,13 @@ interface = gr.Interface(
         gr.Radio(["No", "Yes"], label="Family History of Mental Illness")
     ],
     outputs=[
-        gr.Textbox(label="Depression Status"), # NEW OUTPUT FIELD
-        gr.Textbox(label="Assessment"),
-        gr.Textbox(label="Risk Probability"),
-        gr.Textbox(label="Recommendation")
+        gr.Textbox(label="Clinical Significance"),
+        gr.Textbox(label="PHQ-9 Severity Category"),
+        gr.Textbox(label="Severity Percentage"),
+        gr.Textbox(label="Clinical Recommendation")
     ],
-    title="AI Depression Risk Screener",
-    description="Welcome to a secure, AI-powered platform designed to assess depression risk using validated lifestyle and behavioral indicators. \n\n Your privacy is our priority. All information provided is handled securely, anonymized, and never shared with third parties. \n\n By using this platform, you provide informed consent for your data to be processed solely for depression risk prediction and research-driven improvement of the system."
+    title="AI Depression Risk Screener (PHQ-9 Aligned)",
+    description="This tool uses machine learning to estimate depression risk, mapped to the standard PHQ-9 (Patient Health Questionnaire) severity scales. \n\n **Disclaimer:** This is a screening tool, not a clinical diagnosis. Please consult a professional for medical advice."
 )
 
 if __name__ == "__main__":
